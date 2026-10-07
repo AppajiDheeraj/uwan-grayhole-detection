@@ -1,0 +1,32 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=0.85in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{hyperref}
+
+\title{\vspace{-1.2cm}\bfseries Observability-Aware Trust-Based Grayhole Detection\\for Underwater Acoustic Networks}
+\author{CS301 Computer Networks Mini Project, Team 9\\
+National Institute of Technology Karnataka, Surathkal}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-1.1cm}
+
+\noindent\textbf{Team members}\par
+\smallskip
+\noindent 241CS110, Appaji Nagaraja Dheeraj, +91 9481660290, \href{mailto:appajidheeraj.241cs110@nitk.edu.in}{appajidheeraj.241cs110@nitk.edu.in}\\
+241CS111, Aryan Bokolia, +91 7982212773, \href{mailto:aryanbokolia.241cs111@nitk.edu.in}{aryanbokolia.241cs111@nitk.edu.in}\\
+241CS117, Karthikeya Gupta, +91 6303223736, \href{mailto:karthikeyagupta.241cs117@nitk.edu.in}{karthikeyagupta.241cs117@nitk.edu.in}
+
+\section*{Problem statement and objectives}
+Underwater sensor nodes pass data through other nodes to reach a sink. Acoustic links have long delays, limited bandwidth, and frequent errors, so a lost packet does not by itself prove that a relay is malicious~\cite{akyildiz2005}. A grayhole relay makes this harder by forwarding some packets and quietly dropping others. A watchdog can listen for a neighbor's retransmission and lower its trust when no forwarding is heard~\cite{marti2000}. Yet a monitor may miss a genuine transmission while it is sending, during a collision, or when the received frame is corrupted. Treating every such miss as a drop can accuse an honest relay. Underwater trust-based routing has been studied, but trust alone does not establish whether a forwarding event was observable~\cite{han2023}. We propose a network-layer detector in which each node keeps a trust score for its next-hop neighbors and updates it only after an observable forwarding opportunity. A distance-dependent decision threshold will be calibrated from benign links in simulation rather than assumed to be the same for every link. The routing agent will avoid neighbors whose scores fall below their link threshold; no network-wide vote or machine-learning model is required. Our objectives are to (1) implement the detector in UnetStack, (2) compare it with unprotected routing and a simple watchdog baseline under partial packet dropping, and (3) measure delivery ratio, detection rate, false alarms, detection delay, and control overhead~\cite{chitre2014}.
+
+\begin{thebibliography}{4}\small
+\bibitem{akyildiz2005} I. F. Akyildiz, D. Pompili, and T. Melodia, ``Underwater acoustic sensor networks: research challenges,'' \emph{Ad Hoc Networks}, vol. 3, no. 3, pp. 257--279, 2005. doi: \href{https://doi.org/10.1016/j.adhoc.2005.01.004}{10.1016/j.adhoc.2005.01.004}.
+\bibitem{marti2000} S. Marti, T. J. Giuli, K. Lai, and M. Baker, ``Mitigating routing misbehavior in mobile ad hoc networks,'' in \emph{Proc. ACM MobiCom}, pp. 255--265, 2000. doi: \href{https://doi.org/10.1145/345910.345955}{10.1145/345910.345955}.
+\bibitem{han2023} D. Han, X. Du, L. Wang, X. Liu, and X. Tian, ``Trust-aware and fuzzy logic-based reliable layering routing protocol for underwater acoustic networks,'' \emph{Sensors}, vol. 23, no. 23, art. 9323, 2023. doi: \href{https://doi.org/10.3390/s23239323}{10.3390/s23239323}.
+\bibitem{chitre2014} M. Chitre, R. Bhatnagar, and W.-S. Soh, ``UnetStack: an agent-based software stack and simulator for underwater networks,'' in \emph{Proc. OCEANS}, 2014. doi: \href{https://doi.org/10.1109/OCEANS.2014.7003044}{10.1109/OCEANS.2014.7003044}.
+\end{thebibliography}
+\end{document}
