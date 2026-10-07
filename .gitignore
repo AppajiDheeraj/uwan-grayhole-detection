@@ -1,0 +1,14 @@
+tools/
+logs/
+*.log
+.DS_Store
+*.aux
+*.bbl
+*.blg
+*.out
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+/AGENTS.md
+/CLAUDE.md
+/INFO.md
