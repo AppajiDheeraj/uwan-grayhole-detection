@@ -1,0 +1,66 @@
+\documentclass{article}
+\usepackage[top=1.5in, bottom=1in, left=1.25in, right=1.25in]{geometry}
+
+\usepackage{setspace}
+
+\title{\textbf{Observability-Aware Trust-Based Grayhole Detection for Underwater Acoustic Networks}}
+\date{}
+
+\begin{document}
+
+\setstretch{1.5}
+
+\maketitle
+
+\section*{Team Members}
+
+\noindent 1. 241CS110, Appaji Nagaraja Dheeraj, appajidheeraj.241cs110@nitk.edu.in, 9481660290 \\
+\noindent 2. 241CS111, Aryan Bokolia, aryanbokolia.241cs111@nitk.edu.in, 7982212773 \\
+\noindent 3. 241CS117, Karthikeya Gupta, karthikeyagupta.241cs117@nitk.edu.in, 6303223736
+
+\section*{Abstract}
+
+% Background (4-5 lines)
+Radio waves fade within a few metres in seawater, so underwater sensor networks send data with acoustic modems.
+Sound travels at about 1500~m/s, links run at a few kbps, and noise, multipath and collisions corrupt many frames~\cite{akyildiz2005}.
+A seabed sensor rarely reaches the surface sink directly, so other sensors relay its packets over several hops.
+This routing happens at the network layer, and every node depends on its neighbours to forward honestly.
+% Challenges and issues (4-5 lines)
+A captured relay can launch a grayhole attack, forwarding some packets and dropping the rest.
+Encryption does not stop it, because the node still holds valid keys.
+Honest acoustic links already lose packets, so a relay that drops a quarter of its traffic looks like a weak link.
+The usual check is a watchdog, in which a node overhears whether its next hop forwards each packet and flags the relay once its missed forwards cross a fixed threshold~\cite{marti2000}.
+Underwater, the watchdog often cannot hear, because its half-duplex modem is deaf while it transmits and collisions or corrupted frames hide real forwards.
+% Existing approaches and their issues (4-5 lines)
+Earlier work in UnetStack3 demonstrated a selective forwarding attack and a way to detect it [3].~\cite{chandavarkar2021}.
+Channel-aware detection sets a per-link threshold from expected loss, but it targets terrestrial mesh networks and does not consider times when the monitor cannot listen~\cite{shila2009}.
+Underwater trust models such as ARTMM~\cite{han2015} and the model of Liu et al.~\cite{liu2024} combine several trust measures to cope with unreliable acoustic links.
+In the work we reviewed, no detector checks whether the monitor could hear each expected forward.
+% Problem statement (2 lines)
+Watchdog detectors in underwater acoustic networks treat every missed overhear as a malicious drop, even when the monitor was transmitting or its reception failed.
+These false accusations grow with traffic and let a grayhole relay hide inside natural link loss.
+% Objectives (2-3)
+First, we will build a watchdog in UnetStack~\cite{chitre2014} that counts a missed forward against a relay only when the monitor was able to hear it.
+Second, we will compare each relay's missed forwards with the loss expected on its link, weight this evidence by link distance, and give an administrator a ranked list of suspected relays.
+Third, we will compare the detector with a fixed-threshold watchdog and a channel-aware detector, measuring false accusations, detection rate, detection delay and packet delivery ratio as traffic load and drop rate vary.
+
+\begin{thebibliography}{7}
+\raggedright
+
+\bibitem{akyildiz2005} I. F. Akyildiz, D. Pompili, and T. Melodia, ``Underwater acoustic sensor networks: research challenges,'' \emph{Ad Hoc Networks}, vol.~3, no.~3, pp.~257--279, 2005, doi: 10.1016/j.adhoc.2005.01.004.
+
+\bibitem{marti2000} S. Marti, T. J. Giuli, K. Lai, and M. Baker, ``Mitigating routing misbehavior in mobile ad hoc networks,'' in \emph{Proc. 6th ACM MobiCom}, 2000, pp.~255--265, doi: 10.1145/345910.345955.
+
+\bibitem{chandavarkar2021} B. R. Chandavarkar and N. Suresh, ``Demonstration of selective forwarding attack and detection mechanism in UnetStack3,'' in \emph{Proc. 12th Int. Conf. Computing Communication and Networking Technologies (ICCCNT)}, 2021, pp.~1--6, doi: 10.1109/ICCCNT51525.2021.9580125.
+
+\bibitem{shila2009} D. M. Shila, Y. Cheng, and T. Anjali, ``Channel-aware detection of gray hole attacks in wireless mesh networks,'' in \emph{Proc. IEEE GLOBECOM}, 2009.
+
+\bibitem{han2015} G. Han, J. Jiang, L. Shu, and M. Guizani, ``An attack-resistant trust model based on multidimensional trust metrics in underwater acoustic sensor network,'' \emph{IEEE Trans. Mobile Computing}, vol.~14, no.~12, pp.~2447--2459, 2015, doi: 10.1109/TMC.2015.2402120.
+
+\bibitem{liu2024} C. Liu, J. Ye, F. An, and W. Jiang, ``An adaptive trust evaluation model for detecting abnormal nodes in underwater acoustic sensor networks,'' \emph{Sensors}, vol.~24, no.~9, art.~2880, 2024, doi: 10.3390/s24092880.
+
+\bibitem{chitre2014} M. Chitre, R. Bhatnagar, and W.-S. Soh, ``UnetStack: an agent-based software stack and simulator for underwater networks,'' in \emph{Proc. IEEE OCEANS}, 2014, doi: 10.1109/OCEANS.2014.7003044.
+
+\end{thebibliography}
+
+\end{document}

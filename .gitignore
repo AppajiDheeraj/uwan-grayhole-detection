@@ -12,3 +12,22 @@ logs/
 /AGENTS.md
 /CLAUDE.md
 /INFO.md
+
+# Agent skills and plugins (local only)
+.agents/
+.claude/
+skills-lock.json
+/reasoning
+# Evidence partitions (merged into results/evidence.csv and evidence_cal.csv, which are kept)
+results/evidence_*.csv
+!results/evidence_cal.csv
+# Per-job live-network parts (merged into results/network*.csv by run.sh)
+results/network_g*.csv
+results/network_rounds_g*.csv
+results/network_demo.csv
+results/network_rounds_demo.csv
+results/isolate_runs/network_g*.csv
+results/isolate_runs/network_rounds_g*.csv
+# Old outputs and scratch (backed up in the Desktop ZIPs)
+results/archive_before_pipeline/
+tmp/

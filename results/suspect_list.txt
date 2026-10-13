@@ -1,0 +1,10 @@
+Ranked suspect list (ours) - topology 201, 3 grayholes dropping 30%, load 0.005, after 6 h
+
+rank  node  est. drop (%)   trust   windows  monitors  decision   truth
+1     17    38.9            0.61    1253     7         SUSPECT    grayhole
+2     10    32.1            0.68    3393     11        SUSPECT    grayhole
+3     12    28.2            0.72    1733     7         SUSPECT    grayhole
+4     16    0.2             1.00    246      3         -          honest
+5     8     0.0             1.03    415      5         -          honest
+6     4     0.0             1.02    217      1         -          honest
+7     5     0.0             1.08    102      1         -          honest

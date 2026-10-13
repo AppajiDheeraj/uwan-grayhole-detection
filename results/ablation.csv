@@ -1,0 +1,17 @@
+variant,alpha,scenario,detected,attackers,honest_suspects,honest_judged
+full method,0.0001,load,36,40,6,528
+full method,0.0001,two,19,20,0,51
+full method,0.0001,three,23,30,0,41
+full method,0.0001,hotspot,9,10,13,132
+no observability filter,0.0001,load,37,40,8,528
+no observability filter,0.0001,two,19,20,0,51
+no observability filter,0.0001,three,22,30,0,41
+no observability filter,0.0001,hotspot,9,10,12,132
+no baseline cleaning,0.05,load,38,40,12,528
+no baseline cleaning,0.05,two,20,20,2,51
+no baseline cleaning,0.05,three,17,30,0,41
+no baseline cleaning,0.05,hotspot,10,10,11,132
+area average instead of median,0.001,load,38,40,8,528
+area average instead of median,0.001,two,19,20,0,51
+area average instead of median,0.001,three,23,30,0,41
+area average instead of median,0.001,hotspot,8,10,3,132

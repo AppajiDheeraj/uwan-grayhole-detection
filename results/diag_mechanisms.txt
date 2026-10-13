@@ -1,0 +1,15 @@
+Mechanism checks on calibration topologies [101, 102, 103], load 0.005, busiest relay drops 30%
+
+1. Does C2 select by outcome? Share of windows (already passing C1, C3, C4) that also pass C2:
+   relay forwarded     87.7% of 20498 windows
+   relay dropped       98.4% of 2654 windows
+   relay notReceived   98.5% of 3429 windows
+
+   Monitor-window-weighted drop share among received attacker packets (unfiltered first):
+     all windows             29.6%
+     passing C1, C3, C4      29.2%
+     passing C1-C4 and C2    31.5%
+
+2. Honest packets watched by 2+ eligible monitors: 4747, mean monitors 3.35
+   C1+C3+C4: P(both miss) =  14.1% vs pooled pair-marginal q^2 =   4.2% (q 0.205)
+   Descriptive dependence check, including link heterogeneity; not an independence test or effective sample size.

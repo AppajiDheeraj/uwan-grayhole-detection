@@ -1,0 +1,11 @@
+{
+  "description": "Completed review run used by report; generated figures are embedded PGFPlots coordinates, not external images.",
+  "inputs": {
+    "matched_runs.csv": "95647cdb66a0a0cef914bb09bf83c6121b736829d19ff33c71b9095c36d3a76b",
+    "matched_budget.csv": "ed964ffacf07128f6fb91fdba44998eaeafd4933d5bae112bd458547f0d45841",
+    "phase3_avoid.csv": "545c41d6fc016728fca2b59bca1876698db71bc03fd0e01d02e77df050c5dd3e",
+    "phase3_isolate.csv": "ee16971b7d6b53feaa48d7f30f3af5ead20cdf693620fb522be710732fb71e2c",
+    "thresholds.csv": "eb40bd201cfcd8b4ebe4b4bed91a204cf2a7c63132daf0bae3ed7368dbe1a11d"
+  },
+  "source_sha256": "3f1c7cd3692c144cc55251661c99d1089c63c13de15bacb8abb447fea36f9513"
+}
