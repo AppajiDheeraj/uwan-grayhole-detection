@@ -34,7 +34,7 @@ W  = [end(IB) + d(B,M)/c, end(IB) + Tw + Tf + d(B,M)/c]
 
 `IB` is P's arrival interval at B. `W` is the expected observation window for B's forward. There is no link-layer ACK confirming receipt at B; upstream loss is part of the expected-loss model.
 
-`Tw=2 s` without MAC coordination. Saved no-MAC calibration observed a 50 ms 99th percentile and 1.12 s maximum forwarding delay. CSMA uses `Tw=10 s`: its saved calibration had an 8.532 s 99th percentile at load 0.005. This is an allowance, not a guaranteed queueing bound. Some CSMA forwards take longer. The 200 ms expiry ticker and 50 ms grace can extend a watch by up to 250 ms. The simulation data frame is about 1.02 s.
+`Tw=2 s` without MAC coordination. The measured forwarding delays had a 50 ms 99th percentile and 1.12 s maximum forwarding delay. This is an allowance, not a guaranteed queueing bound (`unet/forward_delay.groovy`, `results/forward_delay.txt`). The 200 ms expiry ticker and 50 ms grace can extend a watch by up to 250 ms. The simulation data frame is about 1.02 s.
 
 ## 4. Which windows count?
 
@@ -50,7 +50,7 @@ For C4, shift a known transmission at node C by `d(C,B)/c`. Include M's own tran
 
 An eligible window contributes either **HEARD** or **SILENT**. An excluded window is **BLIND/unknown** and contributes to neither count. The 32 counter bins retain sender/overhear status, each eligibility condition and the outcome, so ablations can reuse the evidence.
 
-**C2 (a corrupted frame at M) is deliberately excluded from the filter.** B's attempted forward can itself produce that event; a drop produces no transmission. Rejecting such windows selectively removes forwarding attempts. The original calibration diagnostic found C2 pass rates 87.7% for forwarding attempts versus 98.4% for malicious drops, conditional on C1+C3+C4. Updated diagnostics are in `results/diag_mechanisms.txt`; the original is preserved in `results/diagnostics_before_review/`.
+**C2 (a corrupted frame at M) is deliberately excluded from the filter.** B's attempted forward can itself produce that event; a drop produces no transmission. Rejecting such windows selectively removes forwarding attempts. The original calibration diagnostic found C2 pass rates 87.7% for forwarding attempts versus 98.4% for malicious drops, conditional on C1+C3+C4. The diagnostic output is kept in `results/diag_mechanisms.txt` (its script, removed in the simplification, is in git history).
 
 C1+C3+C4 are observable exclusions, not a theorem of unbiased sampling. Decoding the interference used by C4 and later traffic can depend on forwarding outcomes. Small observed bias in a few calibration networks does not prove independence in general.
 
@@ -85,15 +85,7 @@ Example: 100 windows, channel expectation 90, residual loss 10% → expected for
 1. *Per area:* every link's expected forwards use the normal loss of its distance area (near, medium or far), not one network-wide value.
 2. *Across monitors:* trust is the weighted average of each monitor's own trust, weighted by how many forwards that monitor expected: `T_B = sum_i Ei (Oi/Ei) / sum_i Ei = sum(Oi)/sum(Ei)`. A monitor with more evidence counts more, and nearby, far-away and medium links each enter with their own area's expectation.
 
-Inside an area we use the **median** of the other relays' link losses rather than their weighted mean, because the median ignores a minority of bad links. In a single-round test on the tuning networks (before confirmation and baseline cleaning), the weighted mean lowered single-grayhole recall from 96% to 75%: the attacker's own lossy links pull the area's "normal" loss up and hide it. In the final pipeline, where cleaning already removes suspicious links, the two give similar detection (`results/ablation.csv`, row "area average instead of median"). Fixed multipliers 1/1/1, 0.8/1/1.2 and 0.5/1/1.5 (the first design) remain supporting comparisons, not proven constants.
-
-**Exact wrong-channel ablation:** saved counts also contain `s1=sum(eAB+eBM)`. Thus `sum(eAB*eBM)=G-n+s1` and, for assumed loss scale k:
-
-```
-G(k) = G + (1-k) s1 + (k^2-1) (G-n+s1)
-```
-
-No extra simulation is needed. CSV rounding is the remaining numerical approximation.
+Inside an area we use the **median** of the other relays' link losses rather than their weighted mean, because the median ignores a minority of bad links. In a single-round test on the tuning networks (before confirmation and baseline cleaning), the weighted mean lowered single-grayhole recall from 96% to 75%: the attacker's own lossy links pull the area's "normal" loss up and hide it. In the final pipeline, where cleaning already removes suspicious links, the two give similar detection (`results/ablation.csv`, row "area average instead of median"). The first design's fixed near/medium/far multipliers (0.5/1/1.5) are no longer used: the expected forwards already depend on distance, so a hand-set weight is not needed.
 
 ## 6. Several grayholes: clean the baseline
 
@@ -129,7 +121,7 @@ Ranking uses S; flagging also needs exposure and deviation evidence. A relay can
 | No-filter variant | Same proposed estimator with every window eligible |
 | Frozen-loss variants | Filter on/off, but one constant observed-loss cutoff replaces expected-loss and deviation decisions |
 
-The CAD-style formula is a local ALOHA-inspired adaptation of the channel/collision idea in Shila et al. (2010), sections V–VI. Its monitor busy ratio is only a proxy for both reception locations; the ALOHA approximation is not exact under CSMA. It omits the published algorithm's upstream monitoring, PROBE/ACK exchange and signed reports. Our fixed watchdog does **not** reproduce the Chandavarkar–Suresh destination-timeout detector.
+The CAD-style formula is a local ALOHA-inspired adaptation of the channel/collision idea in Shila et al. (2010), sections V–VI. Its monitor busy ratio is only a proxy for both reception locations. It omits the published algorithm's upstream monitoring, PROBE/ACK exchange and signed reports. Our fixed watchdog does **not** reproduce the Chandavarkar–Suresh destination-timeout detector.
 
 `unet/compare.groovy` replays the sink's real decision loop (detector, two-round confirmation, confirmed suspects stay) for every method on the same recorded counters. Two rules are reported:
 

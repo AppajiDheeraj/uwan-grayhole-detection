@@ -1,8 +1,9 @@
-// Calibration runs: no attacker, separate seeds (101-103) from the test seeds
-// used by record.groovy and network.groovy, so no parameter is tuned on the data it is evaluated on.
+// How long do honest relays hold a packet before forwarding it? This sets the watch window
+// (FWD_WAIT = 2 s in record.groovy and network.groovy). No attacker, tuning topologies
+// 101-103 only, so the setting is never chosen on the test networks.
 //
-// Run from inside unet/:   ../tools/unet-7.0.0/bin/unet $PWD/calibrate.groovy
-// Output: ../results/calibration.txt
+// Run from inside unet/:   ../tools/unet-7.0.0/bin/unet $PWD/forward_delay.groovy
+// Output: ../results/forward_delay.txt
 //
 // Reports, per traffic load: delivery ratio, how long relays hold packets before
 // forwarding (sets the watch window), and how many windows are eligible.
@@ -15,14 +16,9 @@ def SEEDS = [101, 102, 103]
 def DURATION = 6.hours
 def FWD_WAIT = 8000          // generous on purpose: we measure the real delays here
 
-channel.model = DistanceLossChannel
-channel.communicationRange = Topology.RANGE
-channel.detectionRange = Topology.RANGE
-channel.interferenceRange = Topology.RANGE
-channel.pDecoding = 1.0
-channel.edgeLoss = Detectors.EDGE_LOSS
+channel.model = DistanceLossChannel   // range, loss curve: see DistanceLossChannel
 
-def out = new File('../results/calibration.txt')
+def out = new File('../results/forward_delay.txt')
 out.text = ''
 def say = { s -> println s; out << s + '\n' }
 
@@ -61,4 +57,4 @@ for (load in LOADS) {
     late, 100.0 * elig / all, 100.0 * eligMiss / elig, 100.0 * allMiss / all)
 }
 
-println 'COMPLETE calibrate'
+println 'COMPLETE forward_delay'

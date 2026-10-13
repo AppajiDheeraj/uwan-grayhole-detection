@@ -38,12 +38,7 @@ def ROUND_MS = 1800000
 def DROP = 0.3
 def FWD_WAIT = 2000
 
-channel.model = DistanceLossChannel
-channel.communicationRange = Topology.RANGE
-channel.detectionRange = Topology.RANGE
-channel.interferenceRange = Topology.RANGE
-channel.pDecoding = 1.0
-channel.edgeLoss = Detectors.EDGE_LOSS
+channel.model = DistanceLossChannel   // range, loss curve: see DistanceLossChannel
 
 def thresholds = [:]
 new File('../results/thresholds.csv').readLines().drop(1).each { l ->
@@ -51,14 +46,6 @@ new File('../results/thresholds.csv').readLines().drop(1).each { l ->
   thresholds[f[0]] = [own: f[1] as double, budget: f[2] as double]
 }
 assert ['fixed', 'cad', 'ours'].every { thresholds[it] } && POLICY in ['avoid', 'isolate'] && RULE in ['own', 'budget']
-def detector = { String method, List rows, Set suspects ->
-  double th = thresholds[method][RULE]
-  switch (method) {
-    case 'fixed': return Detectors.fixed(rows, [threshold: th])
-    case 'cad': return Detectors.cad(rows, [zCrit: th])
-    case 'ours': return Detectors.run('ours', rows, [alpha: th, exclude: suspects])
-  }
-}
 
 def runs = new File("../results/network${PART}.csv")
 runs.text = 'grayholes,load,seed,policy,rule,case,generated,delivered,pdr,latency_s,hops,tx_per_delivered,report_tx,' +
@@ -90,7 +77,7 @@ for (seed in SEEDS) {
         agents[Topology.SINK].onRound = { long t ->
           if (defended) {
             def rows = agents[Topology.SINK].receivedEvidence()
-            def result = rows ? detector(name, rows, state.suspects) : null
+            def result = rows ? Detectors.decide(name, rows, thresholds[name][RULE], state.suspects) : null
             Set flagged = result ? result.flagged as Set : [] as Set
             Set suspects = Detectors.confirm(state.suspects, state.lastFlagged, flagged)
             state.lastFlagged = flagged

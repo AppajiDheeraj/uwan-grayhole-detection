@@ -123,7 +123,7 @@ The standard topology contains 20 static sensors and one sink. Positions and a d
 \end{figure}
 
 \subsection{Observability checks}
-For monitor $M$, sender $A$ and relay $B$, known distances and sound speed estimate the packet's arrival interval at $B$ and the interval in which $M$ expects a forward. The no-MAC forwarding allowance is 2~s; the CSMA scenario uses 10~s. These are configured observation allowances, not guaranteed queueing bounds.
+For monitor $M$, sender $A$ and relay $B$, known distances and sound speed estimate the packet's arrival interval at $B$ and the interval in which $M$ expects a forward. The forwarding allowance is 2~s; on the tuning networks 99\% of forwards left within 50~ms and the longest took 1.12~s. It is a configured observation allowance, not a guaranteed queueing bound.
 
 The main rule retains a window only when (C1) the monitor did not transmit during its watch interval, (C3) the monitor did not observe the relay transmitting during the incoming packet's arrival, and (C4) no transmission known to the monitor would overlap that arrival at the relay. These conditions apply to heard forwards and misses alike. Hidden interference and decoding losses remain possible.
 

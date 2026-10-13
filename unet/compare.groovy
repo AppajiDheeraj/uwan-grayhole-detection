@@ -6,10 +6,10 @@
 //   and for ours they also leave the "normal loss" baseline of later rounds.
 // Two threshold rules per method:
 //   own     - the setting each method would be deployed with: fixed watchdog miss rate > 30%,
-//             CAD-style z > 2, ours alpha chosen on the calibration networks (= its budget value)
+//             CAD-style z > 2, ours alpha chosen on the tuning networks (= its budget value)
 //   budget  - every method held to the same false-alarm budget: the loosest threshold whose
 //             confirmed honest suspects stay <= 5% of honest judged relays on the no-attack
-//             calibration runs (topologies 101-106); frozen, then applied to the test runs
+//             tuning runs (topologies 101-106); frozen, then applied to the test runs
 //
 // Run from inside unet/:   ../tools/unet-7.0.0/bin/unet $PWD/compare.groovy
 // Output: ../results/thresholds.csv     method, own and budget thresholds
@@ -49,8 +49,7 @@ def replay = { String method, double th, Map run ->
   Integer detected = null
   def last = null
   run.rounds.eachWithIndex { rows, i ->
-    def opt = method == 'fixed' ? [threshold: th] : method == 'cad' ? [zCrit: th] : [alpha: th, exclude: suspects]
-    last = Detectors.run(method, rows, opt)
+    last = Detectors.decide(method, rows, th, suspects)
     judged.addAll(last.stats.findAll { k, v -> v.n >= Detectors.MIN_OBS }.keySet())
     suspects = Detectors.confirm(suspects, previous, last.flagged as Set)
     previous = last.flagged as Set
@@ -60,21 +59,26 @@ def replay = { String method, double th, Map run ->
    judged: (judged - run.attackers).size(), detected: detected, suspects: suspects, last: last]
 }
 
-def cal = load('_cal').findAll { it.scenario == 'load' && !it.attackers }
+def tuning = load('_cal').findAll { it.scenario == 'load' && !it.attackers }   // no-attack tuning networks
 def test = load('')
-assert cal && test && cal*.seed.intersect(test*.seed).isEmpty(): 'Calibration and test topologies must differ'
+assert tuning && test && tuning*.seed.intersect(test*.seed).isEmpty(): 'Tuning and test topologies must differ'
 
-// ---- thresholds: every method gets the same budget on the calibration networks
-def thresholds = [:]
-SWEEP.each { method, values ->
+/** The loosest threshold whose honest suspects stay within BUDGET on the no-attack tuning networks. */
+def tune = { String method, List values ->
   def chosen = values.find { th ->
-    def r = cal.collect { replay(method, th, it) }
+    def r = tuning.collect { replay(method, th, it) }
     double rate = r.sum { it.honest } / Math.max(1, r.sum { it.judged })
-    println sprintf('calibration %-5s threshold %-8s honest suspects %.3f', method, th, rate)
+    println sprintf('tuning %-11s threshold %-8s honest suspects %.3f', method, th, rate)
     rate <= BUDGET
   }
   assert chosen != null: "No $method threshold meets the budget"
-  thresholds[method] = [own: OWN[method] != null ? OWN[method] : chosen, budget: chosen]
+  return chosen
+}
+
+// ---- thresholds: every method gets the same budget on the tuning networks
+def thresholds = SWEEP.collectEntries { method, values ->
+  def chosen = tune(method, values)
+  [method, [own: OWN[method] != null ? OWN[method] : chosen, budget: chosen]]
 }
 new File('../results/thresholds.csv').text = 'method,own,budget\n' +
   thresholds.collect { m, t -> "$m,${t.own},${t.budget}" }.join('\n') + '\n'
@@ -110,10 +114,7 @@ def abl = new File('../results/ablation.csv')
 abl.text = 'variant,alpha,scenario,detected,attackers,honest_suspects,honest_judged\n'
 [['full method', 'ours'], ['no observability filter', 'area'], ['no baseline cleaning', 'ours-nopeel'],
  ['area average instead of median', 'ours-mean']].each { label, method ->
-  def chosen = SWEEP.ours.find { th ->
-    def r = cal.collect { replay(method, th, it) }
-    r.sum { it.honest } / Math.max(1, r.sum { it.judged }) <= BUDGET
-  }
+  def chosen = tune(method, SWEEP.ours)
   test.findAll { it.scenario in ['load', 'two', 'three', 'hotspot'] }.groupBy { it.scenario }.each { scenario, runs ->
     def r = runs.collect { replay(method, chosen, it) }
     abl << [label, chosen, scenario, r.sum { it.caught }, runs.sum { it.attackers.size() }, r.sum { it.honest }, r.sum { it.judged }].join(',') + '\n'

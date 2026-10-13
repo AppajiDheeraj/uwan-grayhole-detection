@@ -1,7 +1,6 @@
 import java.nio.ByteBuffer
 import org.arl.fjage.*
 import org.arl.unet.*
-import org.arl.unet.mac.*
 import org.arl.unet.phy.*
 
 /**
@@ -26,9 +25,8 @@ import org.arl.unet.phy.*
  *   C4      - no frame known to M (heard from another node, or sent by M) reached B during
  *             I, i.e. P did not collide at B
  *   heard   - M overheard B forwarding P inside W
- * Next to each counter M adds up, from distances only:
- *   g  = (1 - e(d_AB)) (1 - e(d_BM))   chance an honest forward reaches M if only the channel loses frames
- *   s1 = e(d_AB) + e(d_BM)              lets the detector test a wrong channel model (Detectors.expected)
+ * Next to each counter M adds up, from distances only,
+ *   g = (1 - e(d_AB)) (1 - e(d_BM))   the chance an honest forward reaches M if only the channel loses frames.
  * M also measures its busy time (transmitting or receiving), used by the CAD-style baseline.
  */
 class MonitorNode extends UnetAgent {
@@ -51,32 +49,26 @@ class MonitorNode extends UnetAgent {
   Topology topo
   long fwdWait = 2000          // ms a relay may queue a packet before forwarding
   long checkpointMs = 1800000  // ms between evidence snapshots
-  boolean csma = false         // reserve the channel through the UnetStack CSMA agent first
-  boolean logWindows = false   // keep per-window records (diagnostics only, never used by detectors)
   Closure onRound = null       // live network: the administrator's decision, run at the sink every checkpoint
   String reportRule = null    // live network: sender for baselines, filter for ours; null disables reports
 
   // statistics read by the simulation scripts
-  int generated = 0, relayed = 0, dropped = 0, refused = 0, txCount = 0, lateHeard = 0
+  int generated = 0, txCount = 0, lateHeard = 0
   int reportsSent = 0, reportsDelivered = 0, reportTx = 0   // reportTx: report frames sent (also in txCount)
   long busyMs = 0
   List<long[]> delivered = []                                          // sink: [origin, latency ms, hops, generation ms]
   List<Long> genTimes = []                                             // generation time of each data packet
   Map<Integer, long[]> ev = [:].withDefault { new long[CLASSES] }      // relay -> counters
   Map<Integer, double[]> expect = [:].withDefault { new double[CLASSES] }  // relay -> sum of g
-  Map<Integer, double[]> lossSum = [:].withDefault { new double[CLASSES] } // relay -> sum of s1
   List<Map> snapshots = []
   Map<String, Map> reportRows = [:]   // sink only: latest DELIVERED report for each monitor/relay
-  List<Long> fwdDelays = []
-  List<Map> windowLog = []                                              // diagnostics only
-  Set<String> droppedIds = new HashSet<>(), receivedIds = new HashSet<>()  // diagnostics only
+  List<Long> fwdDelays = []                                            // forward_delay.groovy: how long relays hold packets
 
-  private AgentID phy, mac
+  private AgentID phy
   private long frameMs = 1020
   private long busyUntil = 0
   private int seq = 0
   private Map<String, Map> txPending = [:]           // TxFrameReq id -> [relay, id]
-  private Map<String, byte[]> waitingForChannel = [:] // ReservationReq id -> packet (CSMA)
   private Map<String, Map> windows = [:]              // "relay:origin:seq" -> window
   private Set<String> closed = new HashSet<>()
   private List<long[]> myTx = [], bad = []
@@ -85,7 +77,6 @@ class MonitorNode extends UnetAgent {
   @Override
   void startup() {
     phy = agentForService(Services.PHYSICAL)
-    if (csma) mac = agentForService(Services.MAC)
     subscribe topic(phy)                  // frames overheard for other nodes, tx/rx events
     subscribe topic(Topics.DATAGRAM)      // frames addressed to this node
     if (genRate > 0) add new PoissonBehavior((long)(1000 / genRate), { generate() })
@@ -100,7 +91,7 @@ class MonitorNode extends UnetAgent {
   /** Copy of the evidence at time t (ms), as the administrator would receive it in a report. */
   Map snapshot(long t) {
     def copy = { Map m -> m.collectEntries { k, v -> [k, v.clone()] } }
-    [t: t, ev: copy(ev), expect: copy(expect), lossSum: copy(lossSum), busyMs: busyMs]
+    [t: t, ev: copy(ev), expect: copy(expect), busyMs: busyMs]
   }
 
   /**
@@ -127,7 +118,7 @@ class MonitorNode extends UnetAgent {
       .put((byte)addr).putShort((short)seq).putInt((int)t).put((byte)0).putFloat((float)(busyMs / (double)t))
     relays.each { b ->
       def (long n, long miss) = Detectors.count(ev[b], reportRule)
-      double g = Detectors.expected(expect[b], lossSum[b], ev[b], reportRule)
+      double g = Detectors.expected(expect[b], reportRule)
       buf.put((byte)b).putInt(Math.toIntExact(n)).putInt(Math.toIntExact(miss)).putDouble(g)
     }
     return buf.array()
@@ -158,7 +149,7 @@ class MonitorNode extends UnetAgent {
       def c = new long[CLASSES], expected = new double[CLASSES]
       c[0] = n - miss; c[1] = miss; expected[0] = g
       reportRows[key] = [t: t, m: m, b: b, d: topo.dist(m, b), busy: busy,
-                         c: c, g: expected, s: new double[CLASSES]]
+                         c: c, g: expected]
       accepted = true
     }
     return accepted
@@ -179,18 +170,9 @@ class MonitorNode extends UnetAgent {
 
   private void transmit(byte[] pkt) {
     if (nextHop == null) return           // isolated: no route to the sink
-    if (!csma) { sendFrame(pkt); return }
-    def req = new ReservationReq(to: nextHop, duration: (frameMs + 100) / 1000f)
-    waitingForChannel[req.messageID] = pkt
-    def rsp = mac << req
-    if (rsp?.performative != Performative.AGREE) { waitingForChannel.remove(req.messageID); refused++ }
-  }
-
-  private void sendFrame(byte[] pkt) {
-    if (nextHop == null) return
     def req = new TxFrameReq(to: nextHop, type: Physical.DATA, data: pkt)
     def rsp = phy << req
-    if (rsp?.performative != Performative.AGREE) { refused++; return }
+    if (rsp?.performative != Performative.AGREE) return
     txPending[req.messageID] = [relay: nextHop, id: pktId(pkt), report: pkt.length > 8]
   }
 
@@ -203,14 +185,7 @@ class MonitorNode extends UnetAgent {
   @Override
   void processMessage(Message msg) {
     long now = currentTimeMillis()
-    if (msg instanceof ReservationStatusNtf) {
-      if (msg.status == ReservationStatus.START) {
-        def pkt = waitingForChannel.remove(msg.inReplyTo)
-        if (pkt) sendFrame(pkt)
-      } else if (msg.status in [ReservationStatus.FAILURE, ReservationStatus.CANCEL]) {
-        if (waitingForChannel.remove(msg.inReplyTo)) refused++
-      }
-    } else if (msg instanceof TxFrameStartNtf) {
+    if (msg instanceof TxFrameStartNtf) {
       frameMs = (long)(msg.txDuration / 1000)
       myTx << ([now, now + frameMs] as long[])
       addBusy(now, now + frameMs)
@@ -257,15 +232,9 @@ class MonitorNode extends UnetAgent {
       else delivered << ([b.get(0) & 0xFF, currentTimeMillis() - b.getInt(3), (b.get(7) & 0xFF) + 1, b.getInt(3)] as long[])
       return
     }
-    if (logWindows) receivedIds << pktId(pkt)
-    if (dropProb > 0 && AgentLocalRandom.current().nextDouble() < dropProb) {
-      dropped++
-      if (logWindows) droppedIds << pktId(pkt)
-    } else {
-      relayed++
-      pkt[7] = (byte)((pkt[7] & 0xFF) + 1)
-      transmit(pkt)
-    }
+    if (dropProb > 0 && AgentLocalRandom.current().nextDouble() < dropProb) return   // grayhole drops it
+    pkt[7] = (byte)((pkt[7] & 0xFF) + 1)
+    transmit(pkt)
   }
 
   private void closeWindows() {
@@ -282,8 +251,6 @@ class MonitorNode extends UnetAgent {
       double eAB = Detectors.channelLoss(topo.dist(w.src, w.relay)), eBM = Detectors.channelLoss(topo.dist(w.relay, addr))
       ev[w.relay][i]++
       expect[w.relay][i] += (1 - eAB) * (1 - eBM)
-      lossSum[w.relay][i] += eAB + eBM
-      if (logWindows) windowLog << [relay: w.relay, id: w.id, sender: w.sender, c13: c13, c2: c2, c4: c4, heard: w.heard]
       closed << e.key
       it.remove()
     }

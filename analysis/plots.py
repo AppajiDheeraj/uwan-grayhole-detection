@@ -2,8 +2,8 @@
 
 Run from the repo root:
     uv run --with matplotlib --with numpy python analysis/plots.py
-Reads results/compare_runs.csv, suspect_scores.csv, suspect_list.txt, thresholds.csv,
-network.csv and network_rounds.csv; writes results/figs/fig1..fig5.png and results/summary.md.
+Reads results/compare_runs.csv, suspect_scores.csv, suspect_list.txt, thresholds.csv, ablation.csv,
+network.csv, network_rounds.csv and isolate_runs/network.csv; writes results/figs/fig1..fig5.png and results/summary.md.
 
   fig1  Before vs after: grayholes caught, honest nodes accused, delivery, throughput (live network)
   fig2  Why the old watchdog fails: honest relays accused as traffic grows
@@ -298,27 +298,23 @@ for c in CASES:
 axes[1].set(title=f"(b) Delivery over time, {g[0]} grayholes, load {g[1]}", xlabel="Time (hours)",
             ylabel="Delivery ratio of data\ngenerated in each 30 min (%)")
 # (c) the same detectors if suspects are blacklisted instead (results/isolate_runs): the cost of false accusations
-iso = read("isolate_runs/network.csv") if (R / "isolate_runs/network.csv").exists() else []
-if iso:
-    iso_seeds = sorted({r["seed"] for r in iso})
-    by_iso = {(r["grayholes"], r["load"], r["case"], r["seed"]): r for r in iso}
-    iso_set = sorted({(r["grayholes"], r["load"]) for r in iso})
-    for i, c in enumerate(["nodefense", "fixed", "cad", "ours"]):
-        vals = [np.mean([pdr(by_iso[(*g, c, s)]) for g in iso_set]) for s in iso_seeds]
-        y, e = mean_ci(vals)
-        cut = np.mean([accused(by_iso[(*g, c, s)]) for g in iso_set for s in iso_seeds])
-        axes[2].bar(i, y, 0.6, yerr=e, capsize=3, color=CASE_COLOR[c])
-        axes[2].text(i, y + e + 0.5, f"{y:.1f}%" + (f"\n{cut:.1f} honest\nblacklisted" if c != "nodefense" else ""),
-                     ha="center", va="bottom", fontsize=7)
-        rows4.append(["all", "all", f"{CASE_NAME[c]} (blacklisting)", f"{y:.1f}", "-", "-", "-", "-", f"{cut:.2f}", "-"])
-    axes[2].set_xticks(range(4), ["No\ndefence", "Fixed\nwatchdog", "CAD-style", "Ours"], fontsize=8)
-    axes[2].set(ylabel="Delivery ratio (%)", ylim=(0, 75), title="(c) If suspects are blacklisted instead")
-policy = network[0]["policy"]
+iso = read("isolate_runs/network.csv")
+by_iso = {(r["grayholes"], r["load"], r["case"], r["seed"]): r for r in iso}
+iso_set = sorted({(r["grayholes"], r["load"]) for r in iso})
+for i, c in enumerate(["nodefense", "fixed", "cad", "ours"]):
+    y, e = mean_ci([np.mean([pdr(by_iso[(*g, c, s)]) for g in iso_set]) for s in seeds])
+    cut = np.mean([accused(by_iso[(*g, c, s)]) for g in iso_set for s in seeds])
+    axes[2].bar(i, y, 0.6, yerr=e, capsize=3, color=CASE_COLOR[c])
+    axes[2].text(i, y + e + 0.5, f"{y:.1f}%" + (f"\n{cut:.1f} honest\nblacklisted" if c != "nodefense" else ""),
+                 ha="center", va="bottom", fontsize=7)
+    rows4.append(["all", "all", f"{CASE_NAME[c]} (blacklisting)", f"{y:.1f}", "-", "-", "-", "-", f"{cut:.2f}", "-"])
+axes[2].set_xticks(range(4), ["No\ndefence", "Fixed\nwatchdog", "CAD-style", "Ours"], fontsize=8)
+axes[2].set(ylabel="Delivery ratio (%)", ylim=(0, 75), title="(c) If suspects are blacklisted instead")
 save(fig, "fig5_network_performance",
      f"Live network ({hours:.0f} h, {len(seeds)} test topologies; grayholes = the busiest relays, dropping 30%). "
      "Every 30 min each monitor sends one bundled report frame to the sink over the same acoustic channel; the "
      "sink runs its detector (each method's own rule), confirms a suspect after two consecutive flagged rounds "
-     f"and {'cuts it out of the network' if policy == 'isolate' else 'routes around it'}. Report traffic is "
+     "and routes around it. Report traffic is "
      "included. (a) Error bars: 95% t-interval of the difference from 'attack, no defence' on the same topology. "
      "(b) Mean over topologies: delivery drops when the attack starts and recovers once traffic avoids the grayholes. "
      "(c) The same detectors when suspects are blacklisted (cut out) instead, all settings pooled: every honest node "
@@ -331,11 +327,10 @@ table("Paired gain of ours on the same topology (95% t-interval)",
       ["grayholes", "load", "comparison", "metric", "difference", "ours higher", "interval above 0"], rows4b)
 
 # ---------------------------------------------------------------- what each part of ours contributes
-if (R / "ablation.csv").exists():
-    rows5 = [[r["variant"], r["scenario"], f"{100 * int(r['detected']) / int(r['attackers']):.0f}%",
-              f"{100 * int(r['honest_suspects']) / max(1, int(r['honest_judged'])):.1f}%"] for r in read("ablation.csv")]
-    table("Our method with one part removed (same false-alarm budget, test topologies)",
-          ["variant", "scenario", "grayholes detected", "honest relays accused"], rows5)
+rows5 = [[r["variant"], r["scenario"], f"{100 * int(r['detected']) / int(r['attackers']):.0f}%",
+          f"{100 * int(r['honest_suspects']) / max(1, int(r['honest_judged'])):.1f}%"] for r in read("ablation.csv")]
+table("Our method with one part removed (same false-alarm budget, test topologies)",
+      ["variant", "scenario", "grayholes detected", "honest relays accused"], rows5)
 
 (R / "summary.md").write_text("\n".join(summary) + "\n")
 print(f"wrote 5 figures in {FIGS} and {R / 'summary.md'}")
