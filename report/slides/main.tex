@@ -1,0 +1,461 @@
+% ============================================================
+%  CS301 - Computer Networks | Team 9 Presentation (Beamer)
+%  Observability-Aware Trust-Based Grayhole Detection for UASNs
+%  Images are read from the figs/ folder.
+% ============================================================
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usetheme{Madrid}
+\setbeamertemplate{navigation symbols}{}
+
+% Footer: team | title | slide number (no date)
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \hbox{%
+    \begin{beamercolorbox}[wd=.3\paperwidth,ht=2.25ex,dp=1ex,center]{author in head/foot}%
+      \usebeamerfont{author in head/foot}\insertshortauthor
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.6\paperwidth,ht=2.25ex,dp=1ex,center]{title in head/foot}%
+      \usebeamerfont{title in head/foot}\insertshorttitle
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.1\paperwidth,ht=2.25ex,dp=1ex,right]{date in head/foot}%
+      \usebeamerfont{date in head/foot}\insertframenumber{} / \inserttotalframenumber\hspace*{2ex}
+    \end{beamercolorbox}}%
+  \vskip0pt%
+}
+
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,decorations.pathreplacing}
+\graphicspath{{figs/}}
+
+\definecolor{nitkblue}{RGB}{51,51,179}   % Madrid's structure blue
+\definecolor{bad}{RGB}{192,57,43}
+\definecolor{good}{RGB}{30,132,73}
+
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{nitkblue}\bfseries,
+  commentstyle=\color{gray}\itshape,
+  frame=single, breaklines=true, columns=fullflexible, language=Java
+}
+
+\tikzset{
+  box/.style={draw=nitkblue,fill=nitkblue!8,rounded corners,align=center,
+              text width=3.2cm,minimum height=6mm,font=\footnotesize},
+  dec/.style={draw=nitkblue,fill=white,diamond,aspect=2.4,align=center,inner sep=1pt,font=\footnotesize},
+  arr/.style={-{Stealth},thick,nitkblue},
+  lbl/.style={font=\scriptsize,text=gray}}
+
+\title[Grayhole Detection in UASNs]{Observability-Aware Trust-Based Grayhole Detection\\for Underwater Acoustic Networks}
+\subtitle{CS301 -- Computer Networks Mini Project}
+\author[Team 9]{Team 9}
+\institute[NITK]{Department of Computer Science and Engineering\\
+National Institute of Technology Karnataka, Surathkal}
+\date{}
+
+\begin{document}
+
+% ---------------- Title ----------------
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ---------------- Team Members ----------------
+\begin{frame}{Team Members}
+  \centering
+  \renewcommand{\arraystretch}{1.4}
+  \begin{tabular}{lll}
+    \toprule
+    \textbf{Roll No.} & \textbf{Name} & \textbf{Email ID} \\
+    \midrule
+    241CS110 & Appaji Nagaraja Dheeraj & \texttt{appajidheeraj.241cs110@nitk.edu.in} \\
+    241CS111 & Aryan Bokolia           & \texttt{aryanbokolia.241cs111@nitk.edu.in} \\
+    241CS117 & Karthikeya Gupta        & \texttt{karthikeyagupta.241cs117@nitk.edu.in} \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+% ---------------- Outline ----------------
+\begin{frame}{Outline}
+  \begin{enumerate}
+    \item Introduction \& Problem Statement
+    \item Background: Grayhole Attack and the Watchdog
+    \item Proposed Approach
+    \item Implementation in UnetStack
+    \item Results \& Comparison
+    \item Conclusion \& Future Work
+  \end{enumerate}
+\end{frame}
+
+% ---------------- Introduction ----------------
+\begin{frame}{Introduction \& Problem Statement}
+  \begin{itemize}
+    \item \textbf{Context:} Underwater Acoustic Sensor Networks (UASNs) carry sensor data to a surface sink over several acoustic hops (Network layer).
+    \item \textbf{Problem:} A \textbf{grayhole} relay silently drops part of the packets it should forward; its loss blends with the normal loss of the channel.
+    \item \textbf{Motivation:} The classic watchdog cannot tell a grayhole from an honest relay on a bad link, so it \textbf{accuses honest nodes} and routing around them costs delivery.
+    \item \textbf{Objectives:}
+      \begin{itemize}
+        \item Judge forwarding only when the monitor could actually observe it.
+        \item Compare observed forwards with what an honest relay \emph{should} show on each link.
+        \item Evaluate against a fixed watchdog and a CAD-style detector in UnetStack.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+% ---------------- Background: setting ----------------
+\begin{frame}{Background: Grayhole Attack}
+  \begin{columns}[c]
+    \column{0.52\textwidth}
+      \begin{itemize}\setlength\itemsep{0.6em}
+        \item Every relay must forward its neighbours' packets to the \textbf{sink}.
+        \item A \textbf{blackhole} drops everything and is easy to find.
+        \item A \textbf{grayhole} drops only a fraction (here \textbf{30\%}), so it looks like a lossy link.
+        \item The \textbf{busiest relays} are made malicious: one grayhole can hurt many sensors.
+      \end{itemize}
+    \column{0.45\textwidth}
+      \centering
+      \includegraphics[height=0.68\textheight]{topology.pdf}\\
+      {\scriptsize Test network 201: sink (green), relays (yellow), grayholes (red)}
+  \end{columns}
+\end{frame}
+
+% ---------------- Background: why the watchdog fails ----------------
+\begin{frame}{Background: Why the Watchdog Fails Under Water}
+  \textbf{Watchdog} (Marti \emph{et al.} 2000; used in UnetStack3 by Chandavarkar \& Suresh 2021):
+  send a packet, listen for the next hop's forward, accuse if too many are missing.
+
+  \vspace{0.8em}
+  \begin{block}{A forward can be missing because \dots}
+    \begin{columns}[t]
+      \column{0.24\textwidth}\centering{\color{bad}\Large\bfseries 1}\\\small the relay \textbf{dropped} it\\{\scriptsize\color{gray}(the attack)}
+      \column{0.24\textwidth}\centering{\Large\bfseries 2}\\\small the monitor was \textbf{transmitting}\\{\scriptsize\color{gray}(half-duplex)}
+      \column{0.24\textwidth}\centering{\Large\bfseries 3}\\\small the packet \textbf{collided} at the relay
+      \column{0.24\textwidth}\centering{\Large\bfseries 4}\\\small the \textbf{long link} lost it
+    \end{columns}
+    \vspace{0.3em}
+  \end{block}
+
+  \vspace{0.5em}
+  \centering
+  Only cause 1 is an attack. Causes 2--4 \textbf{grow with traffic}, so a fixed threshold\\
+  catches grayholes only by \textcolor{bad}{\textbf{also accusing honest relays}}.
+\end{frame}
+
+% ---------------- Proposed approach: before vs after ----------------
+\begin{frame}{Proposed Approach: Baseline vs Ours}
+  \centering
+  \begin{tikzpicture}[node distance=2.5mm]
+    \node[font=\bfseries,text=bad] at (0,0.7) {Before: fixed watchdog};
+    \node[box] (a1) at (0,0) {Send packet to next hop};
+    \node[dec,below=of a1] (a2) {Forward heard?};
+    \node[box,below=of a2] (a3) {Count a miss};
+    \node[dec,below=of a3] (a4) {Miss rate $>$ 30\%?};
+    \node[box,below=of a4,draw=bad,fill=bad!10] (a5) {Accuse\\(honest relays too)};
+    \draw[arr](a1)--(a2); \draw[arr](a2)--node[lbl,right]{no}(a3);
+    \draw[arr](a3)--(a4); \draw[arr](a4)--node[lbl,right]{yes}(a5);
+
+    \node[font=\bfseries,text=good] at (7.5,0.7) {After: ours};
+    \node[box] (b1) at (7.5,0) {Watch every neighbour relay};
+    \node[dec,below=of b1] (b2) {Observable?};
+    \node[box,right=4mm of b2,text width=1.3cm] (bx) {Ignore};
+    \node[box,below=of b2] (b3) {Trust = heard / expected};
+    \node[dec,below=of b3] (b4) {Significant?};
+    \node[box,below=of b4,draw=good,fill=good!10] (b5) {Twice in a row: suspect, route around};
+    \draw[arr](b1)--(b2); \draw[arr](b2)--node[lbl,above]{no}(bx);
+    \draw[arr](b2)--node[lbl,right]{yes}(b3); \draw[arr](b3)--(b4);
+    \draw[arr](b4)--node[lbl,right]{yes}(b5);
+  \end{tikzpicture}
+\end{frame}
+
+% ---------------- Idea 1 ----------------
+\begin{frame}{Proposed Approach: 1. Judge Only What Could Be Observed}
+  \begin{columns}[c]
+    \column{0.56\textwidth}
+      \centering
+      \begin{tikzpicture}[x=0.8cm,y=0.9cm,font=\scriptsize]
+        \foreach \y/\n in {2/A,1/B,0/M} {\draw[-{Stealth[length=3pt]},gray] (0,\y)--(8,\y) node[right]{$t$}; \node[left] at (0,\y) {\small$\n$};}
+        \fill[nitkblue!25,draw=nitkblue] (0.2,1.88) rectangle (1.2,2.12); \node[above] at (0.7,2.12) {$P$ sent};
+        \fill[nitkblue!12,draw=nitkblue] (1.6,0.88) rectangle (2.6,1.12);
+        \draw[densely dashed,gray] (0.2,2)--(1.6,1); \draw[densely dashed,gray] (1.2,2)--(2.6,1);
+        \draw[decorate,decoration={brace,amplitude=3pt,mirror}] (1.6,0.8)--(2.6,0.8) node[midway,below=2pt]{$I_B$};
+        \fill[good!30,draw=good] (3.0,0.88) rectangle (4.0,1.12); \node[above] at (3.5,1.12) {forward};
+        \draw[densely dashed,gray] (3.0,1)--(3.7,0); \draw[densely dashed,gray] (4.0,1)--(4.7,0);
+        \fill[good!15,draw=good] (3.7,-0.12) rectangle (4.7,0.12);
+        \draw[bad,thick] (3.3,-0.35)--(3.3,0.35); \draw[bad,thick] (6.9,-0.35)--(6.9,0.35);
+        \draw[bad,<->] (3.3,-0.5)--node[below]{watch window $W$}(6.9,-0.5);
+      \end{tikzpicture}
+
+      {\scriptsize From positions and the speed of sound (1500 m/s), monitor $M$ knows when packet $P$ reached relay $B$ ($I_B$) and when $B$'s forward should reach $M$ ($W$).}
+    \column{0.42\textwidth}
+      \begin{block}{A window counts only if}
+        \begin{itemize}
+          \item[\textbf{C1}] $M$ was silent during $W$
+          \item[\textbf{C3}] $B$ was not sending during $I_B$
+          \item[\textbf{C4}] no known frame hit $B$ during $I_B$
+        \end{itemize}
+      \end{block}
+      \small Otherwise the window is \textbf{ignored}, not counted as a miss.
+  \end{columns}
+\end{frame}
+
+% ---------------- Idea 2 ----------------
+\begin{frame}{Proposed Approach: 2. Trust Against the Expected Loss}
+  \begin{columns}[c]
+    \column{0.52\textwidth}
+      \begin{itemize}\setlength\itemsep{0.6em}
+        \item Channel loss grows with distance: $e(d)=0.15\,(d/1500)^2$.
+        \item Each kept window adds the chance an honest forward is heard: $g=(1-e(d_{AB}))(1-e(d_{BM}))$.
+        \item Extra loss (collisions) is learned per \textbf{distance area} (near / medium / far) from the \textbf{other} relays' links: $\kappa_{\text{area}}$.
+      \end{itemize}
+    \column{0.45\textwidth}
+      \begin{block}{Trust of relay $B$}
+        \centering
+        $E = G\,(1-\kappa_{\text{area}})$ \quad {\scriptsize expected forwards}\\[0.6em]
+        $\text{Trust}_B = \dfrac{\sum \text{heard}}{\sum E}$\\[0.6em]
+        $\text{Estimated drop} = 1-\text{Trust}_B$
+      \end{block}
+      \small A long or busy link is \emph{expected} to lose more, so it is not mistaken for a grayhole.
+  \end{columns}
+\end{frame}
+
+% ---------------- Idea 3 ----------------
+\begin{frame}{Proposed Approach: 3. Decide Carefully}
+  \begin{columns}[t]
+    \column{0.32\textwidth}
+      \begin{block}{Dynamic threshold}
+        \small Flag only if $\geq 20$ windows, drop $\geq 10\%$ and $z > z^*$; $z^*$ adapts to the number of relays and this round's spread.
+      \end{block}
+    \column{0.32\textwidth}
+      \begin{block}{Two-round confirmation}
+        \small A relay becomes a \textbf{suspect} only if flagged in \textbf{two 30-min rounds in a row}.
+      \end{block}
+    \column{0.32\textwidth}
+      \begin{block}{Baseline cleaning}
+        \small Suspects and relays with $\geq 10\%$ drop leave the ``normal loss'', so several grayholes cannot hide each other.
+      \end{block}
+  \end{columns}
+
+  \vspace{1em}
+  \begin{alertblock}{Response}
+    The sink gives the administrator a \textbf{ranked suspect list} and routes traffic \textbf{around} suspects wherever another path exists.
+  \end{alertblock}
+\end{frame}
+
+% ---------------- Implementation ----------------
+\begin{frame}[fragile]{Implementation in UnetStack 7}
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+      \begin{itemize}\setlength\itemsep{0.4em}
+        \item \texttt{MonitorNode}: one agent per node -- traffic, grayhole drops, watch windows, reports.
+        \item \texttt{Detectors}: fixed watchdog, CAD-style and ours.
+        \item \texttt{Topology}: deployment and routes that avoid suspects.
+        \item \texttt{DistanceLossChannel}: loss grows with distance.
+        \item One pipeline \texttt{run.sh}: record $\rightarrow$ compare $\rightarrow$ live network $\rightarrow$ graphs.
+      \end{itemize}
+    \column{0.5\textwidth}
+\begin{lstlisting}
+onPacket(pkt) {                 // the attack
+  if (dropProb > 0 && random() < dropProb)
+    return                      // grayhole drops it
+  transmit(pkt)                 // forward
+}
+onRound(t) {                    // at the sink, every 30 min
+  rows    = receivedEvidence()  // delivered reports
+  flagged = peel(rows, ALPHA, suspects).flagged
+  suspects += flagged.intersect(lastFlagged)
+  lastFlagged = flagged
+  nextHop = routesAvoiding(suspects)
+}
+\end{lstlisting}
+  \end{columns}
+\end{frame}
+
+% ---------------- Setup ----------------
+\begin{frame}{Experimental Setup}
+  \centering
+  \small
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    \textbf{Parameter} & \textbf{Value}\\
+    \midrule
+    Simulator & UnetStack 7.0.0, protocol channel with distance loss, Java 8\\
+    Network & 20 sensors + sink, 4 km $\times$ 4 km, range 1500 m (also 40-node, sparse)\\
+    Traffic & 0.001--0.01 packets/s per sensor (0.005 default)\\
+    Grayholes & 1, 2 or 3 busiest relays, dropping 30\% (sweep 10--100\%)\\
+    Fairness & thresholds tuned on topologies 101--106; tested on 201--210\\
+    Duration & 6 h recorded runs, 12 h live-network runs, decision every 30 min\\
+    Compared & fixed watchdog (miss $>$ 30\%), CAD-style ($z>2$), ours\\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.8em}
+  {\small Same reports, confirmation and response for every method; only the detection rule differs.}
+\end{frame}
+
+% ---------------- Results at a glance ----------------
+\begin{frame}{Results at a Glance}
+  \centering
+  \begin{tabular}{@{}lrrrr@{}}
+    \toprule
+    \textbf{Live network, 12 h} & \textbf{Caught} & \textbf{Honest accused} & \textbf{Delivery} & \textbf{Throughput (pkt/h)}\\
+    \midrule
+    No attack & -- & -- & 57.0\% & 228.6\\
+    Attack, no defence & 0\% & 0 & 45.6\% & 186.8\\
+    Fixed watchdog & 100\% & \textcolor{bad}{7.2} & 47.0\% & 190.6\\
+    CAD-style & 58\% & 0.8 & 48.0\% & 193.3\\
+    \textbf{Ours} & \textbf{95\%} & \textbf{\textcolor{good}{0.3}} & \textbf{49.7\%} & \textbf{200.5}\\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{1em}
+  \begin{block}{Key takeaway}
+    Ours catches \textbf{95\%} of grayholes while accusing \textbf{0.3} honest relays per run (fixed watchdog: \textbf{7.2}), and gives the highest delivery and throughput.
+  \end{block}
+\end{frame}
+
+% ---------------- Results: before vs after ----------------
+\begin{frame}{Results: Before vs After}
+  \centering
+  \includegraphics[width=\textwidth]{fig1_before_after.png}
+
+  \vspace{0.4em}
+  {\small The fixed watchdog catches everything but also accuses honest relays; routing around them wastes the gain.}
+\end{frame}
+
+% ---------------- Results: false accusations ----------------
+\begin{frame}{Results: False Accusations Grow With Traffic}
+  \begin{columns}[c]
+    \column{0.62\textwidth}
+      \includegraphics[width=\textwidth]{fig2_false_accusations.png}
+    \column{0.36\textwidth}
+      \small With \textbf{no attacker at all}:
+      \begin{itemize}
+        \item Fixed watchdog: \textcolor{bad}{1.0 $\rightarrow$ 6.2} honest relays accused per run.
+        \item CAD-style: 0.3--0.7.
+        \item Ours: \textcolor{good}{\textbf{0--0.1}}.
+      \end{itemize}
+      More traffic = more collisions and deafness, which the watchdog counts as drops.
+  \end{columns}
+\end{frame}
+
+% ---------------- Results: fair contest ----------------
+\begin{frame}{Results: Fair Contest at the Same False-Alarm Budget}
+  \begin{columns}[c]
+    \column{0.62\textwidth}
+      \includegraphics[width=\textwidth]{fig3_detection.png}
+    \column{0.36\textwidth}
+      \small Every threshold tuned so $\leq 5\%$ of honest relays are accused on the tuning networks.
+      \vspace{0.5em}
+
+      \begin{tabular}{@{}lrrr@{}}
+        \toprule
+        Grayholes & Fixed & CAD & \textbf{Ours}\\
+        \midrule
+        1 & 22\% & 58\% & \textbf{90\%}\\
+        2 & 40\% & 65\% & \textbf{95\%}\\
+        3 & 40\% & 77\% & \textbf{77\%}\\
+        \bottomrule
+      \end{tabular}
+  \end{columns}
+\end{frame}
+
+% ---------------- Results: suspect list ----------------
+\begin{frame}{Results: What the Administrator Receives}
+  \centering
+  \includegraphics[width=0.9\textwidth]{fig4_suspect_list.png}
+
+  \vspace{0.3em}
+  {\small (a) The three grayholes rank first (28--39\% estimated drop); honest relays sit at 0--0.2\%.\\
+  (b) The estimate follows the true drop rate: 10/20/50\% $\rightarrow$ 7.6/18.8/47.2\%.}
+\end{frame}
+
+% ---------------- Results: network performance ----------------
+\begin{frame}{Results: Network Performance}
+  \centering
+  \includegraphics[width=\textwidth]{fig5_network_performance.png}
+
+  \vspace{0.3em}
+  {\small (a) Highest delivery in every setting: +1.7 to +5.6 points over no defence. (b) Delivery recovers once grayholes are confirmed. (c) If suspects are blacklisted, the watchdog's false accusations cut delivery to 23\%.}
+\end{frame}
+
+% ---------------- Results: attack strength ----------------
+\begin{frame}{Results: Attack Strength and Detection Cost}
+  \begin{columns}[t]
+    \column{0.32\textwidth}\centering
+      \includegraphics[width=\textwidth]{attack.pdf}\\
+      {\scriptsize Delivery lost to the attack}
+    \column{0.32\textwidth}\centering
+      \includegraphics[width=\textwidth]{detected.pdf}\\
+      {\scriptsize Grayholes confirmed by ours}
+    \column{0.32\textwidth}\centering
+      \includegraphics[width=\textwidth]{detect_time.pdf}\\
+      {\scriptsize Time until all are confirmed}
+  \end{columns}
+
+  \vspace{0.8em}
+  \centering
+  {\small More grayholes cost more delivery and take longer to confirm (two rounds = 60 min minimum).}
+\end{frame}
+
+% ---------------- Discussion ----------------
+\begin{frame}{Discussion}
+  \begin{columns}[T]
+    \column{0.48\textwidth}
+      \begin{block}{What each part contributes}
+        \small
+        \begin{itemize}
+          \item No baseline cleaning: 3-grayhole detection falls 23/30 $\rightarrow$ 17/30.
+          \item No observability filter: similar detection, slightly more false accusations (1.5\% vs 1.1\%).
+        \end{itemize}
+      \end{block}
+    \column{0.48\textwidth}
+      \begin{alertblock}{Where we are not clearly ahead}
+        \small
+        \begin{itemize}
+          \item Delivery gain over CAD-style is within the uncertainty.
+          \item With 3 grayholes, CAD-style detects as often (77\%).
+          \item Hotspot and 40-node networks: $\approx$10\% honest relays accused.
+        \end{itemize}
+      \end{alertblock}
+  \end{columns}
+\end{frame}
+
+% ---------------- Conclusion ----------------
+\begin{frame}{Conclusion \& Future Work}
+  \begin{block}{Conclusion}
+    \begin{itemize}
+      \item Under water, a missing forward is often \textbf{not} an attack.
+      \item Observable windows + expected link loss + dynamic threshold + two-round confirmation: \textbf{95\%} of grayholes caught, \textbf{0.3 vs 7.2} honest relays accused, highest delivery.
+      \item Reproducible in UnetStack: \texttt{./run.sh demo} (3 min), \texttt{./run.sh} (all results).
+    \end{itemize}
+  \end{block}
+  \begin{block}{Future Work}
+    \begin{itemize}
+      \item Dishonest monitors, mobile nodes and location errors.
+      \item Learn the loss curve online; larger and denser networks.
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+% ---------------- References & Thanks ----------------
+\begin{frame}{References \& Thank You}
+  \footnotesize
+  \begin{enumerate}
+    \item B.\ R.\ Chandavarkar and N.\ Suresh, ``Demonstration of selective forwarding attack and detection mechanism in UnetStack3,'' \textit{ICCCNT}, 2021.
+    \item S.\ Marti, T.\ J.\ Giuli, K.\ Lai and M.\ Baker, ``Mitigating routing misbehavior in mobile ad hoc networks,'' \textit{ACM MobiCom}, 2000.
+    \item D.\ M.\ Shila, Y.\ Cheng and T.\ Anjali, ``Mitigating selective forwarding attacks with a channel-aware approach in WMNs,'' \textit{IEEE Trans.\ Wireless Commun.}, 2010.
+    \item I.\ F.\ Akyildiz, D.\ Pompili and T.\ Melodia, ``Underwater acoustic sensor networks: research challenges,'' \textit{Ad Hoc Networks}, 2005.
+    \item M.\ Chitre, R.\ Bhatnagar and W.-S.\ Soh, ``UnetStack: an agent-based software stack and simulator for underwater networks,'' \textit{IEEE OCEANS}, 2014.
+  \end{enumerate}
+  \vspace{1em}
+  \centering
+  {\Large\bfseries Thank You!}\\[0.3em]
+  {\normalsize Questions?}
+\end{frame}
+
+\end{document}
