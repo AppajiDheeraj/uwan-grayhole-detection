@@ -14,8 +14,6 @@ logs/
 /INFO.md
 
 # Agent skills and plugins (local only)
-.agents/
-.claude/
 skills-lock.json
 /reasoning
 # Evidence partitions (merged into results/evidence.csv and evidence_cal.csv, which are kept)

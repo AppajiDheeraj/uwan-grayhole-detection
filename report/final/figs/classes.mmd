@@ -1,0 +1,42 @@
+classDiagram
+    direction TB
+    class MonitorNode {
+        +int addr
+        +Integer nextHop
+        +double dropProb
+        +Map ev
+        +startup()
+        +onPacket(pkt)
+        +closeWindows()
+        +relayClear(w)
+        +sendReports()
+        +acceptReport(pkt)
+    }
+    class Detectors {
+        +fixed(rows)
+        +cad(rows)
+        +ours(rows)
+        +peel(rows)
+        +decide(method, rows)
+        +confirm(suspects, previous, flagged)
+    }
+    class Topology {
+        +Map pos
+        +double RANGE
+        +dist(a, b)
+        +routes(excluded)
+        +routesAvoiding(suspects)
+    }
+    class UnetAgent {
+        <<UnetStack>>
+    }
+    class ProtocolChannelModel {
+        <<UnetStack>>
+    }
+    class DistanceLossChannel {
+        +getProbabilityDecoding(rx)
+    }
+    UnetAgent <|-- MonitorNode
+    ProtocolChannelModel <|-- DistanceLossChannel
+    MonitorNode ..> Detectors : counts, expected forwards
+    MonitorNode ..> Topology : distances

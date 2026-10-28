@@ -1,0 +1,10 @@
+flowchart TB
+    subgraph NODE["Every node (monitor)"]
+        direction LR
+        O["Send or overhear<br/>P for relay B"] --> W["Open window W,<br/>listen for B's forward"] --> C["When W ends, exclude<br/>it if C1, C3 or C4 fails"] --> K["Else HEARD or MISSED;<br/>add g<sub>w</sub> to G<sub>i</sub>"] --> R["Report frames every<br/>30 min, ≤ 6 relays each"]
+    end
+    subgraph SINK["Sink, every 30 min"]
+        direction LR
+        T["Latest report per link<br/>and the sink's own counts"] --> E["E<sub>i</sub> = G<sub>i</sub>(1 − κ<sub>area</sub>); T<sub>B</sub>,<br/>S<sub>B</sub>, z<sub>B</sub>; clean baseline"] --> Z["Flag if n<sub>B</sub> ≥ 20,<br/>z<sub>B</sub> > z*, S<sub>B</sub> ≥ 10%"] --> F["Suspect after two<br/>flagged rounds in a row"] --> RT["Ranked list to admin;<br/>route around or blacklist suspects"]
+    end
+    NODE -- "reports over the acoustic channel" --> SINK

@@ -99,7 +99,7 @@ lost = []
 for k in ["1", "2", "3"]:
     seeds = {r["seed"] for r in net if r["grayholes"] == k}
     lost.append(100 * sum(pdr[k, s, "noattack"] - pdr[k, s, "nodefense"] for s in seeds) / len(seeds))
-bars("attack.pdf", ["1", "2", "3"], lost, "Delivery lost (pp)", "{:.1f}")
+bars("attack.pdf", ["1", "2", "3"], lost, "Delivery ratio lost (absolute %)", "{:.1f}")
 
 # Fig. detected and detection time: ours with its own rule, one 30% grayhole (load 0.005), two, three
 runs = [r for r in read("compare_runs.csv") if r["method"] == "ours" and r["rule"] == "own"]
