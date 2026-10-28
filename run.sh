@@ -4,6 +4,7 @@
 #   ./run.sh demo      lab demo, ~3 min: one network, 3 grayholes, all five cases, ranked suspect list
 #   ./run.sh           full results from the recorded evidence: test, compare, live network, graphs
 #   ./run.sh record    re-record the evidence on calibration and test networks first (several hours)
+#   ./run.sh dashboard rebuild dashboard/ from results/ on demand (not part of the pipeline) and open it
 #
 # Steps:
 #   1. record   unet/record.groovy    simulate the networks, store every monitor's counters
@@ -25,7 +26,7 @@ mkdir -p "$R/logs"
 sim() {
   local script=$1 marker=$2 log=$3
   shift 3
-  (cd "$ROOT/unet" && env "$@" "$UNET" "$ROOT/unet/$script.groovy" > "$R/logs/$log.log" 2>&1)
+  (cd "$ROOT/unet" && env "$@" "$UNET" "$ROOT/unet/$script.groovy" > "$R/logs/$log.log" 2>&1) || true   # the marker check below reports failures
   grep -qx "$marker" "$R/logs/$log.log" || { echo "FAILED $script ($log): see results/logs/$log.log"; return 1; }
   echo "done $log"
 }
@@ -82,5 +83,9 @@ case "${1:-all}" in
     uv run --with matplotlib --with numpy python analysis/plots.py
     echo "PIPELINE COMPLETE — results/summary.md, results/figs/"
     ;;
-  *) echo "usage: ./run.sh [demo|record]"; exit 1 ;;
+  dashboard)
+    sim dashboard DASHBOARD_COMPLETE dashboard
+    open dashboard/index.html 2>/dev/null || echo "open dashboard/index.html in a browser"
+    ;;
+  *) echo "usage: ./run.sh [demo|record|dashboard]"; exit 1 ;;
 esac

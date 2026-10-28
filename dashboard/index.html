@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grayhole Detection Dashboard</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #fff; --ink: #1b2130; --muted: #5f6878; --line: #e1e4ea; --soft: #f0f2f5;
+    --accent: #2457c5; --good: #1d8a4c; --bad: #c63a2e; --warn: #b7791f;
+    --link: #e3e6ec; --route: #b9c0cc; --node: #8d96a6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #11151c; --panel: #1a2029; --ink: #e7ebf1; --muted: #9aa3b2; --line: #2b3340; --soft: #222935;
+      --accent: #6d9cff; --good: #43c27a; --bad: #ff6b5e; --warn: #e5a83b;
+      --link: #262d39; --route: #3f4857; --node: #5f6878;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 20px 24px 40px; display: grid; gap: 16px; }
+  @media (max-width: 700px) { .wrap { padding: 16px; } }
+  h1 { margin: 0; font-size: 20px; }
+  h2 { margin: 0 0 2px; font-size: 15px; }
+  .sub { color: var(--muted); margin: 4px 0 0; font-size: 13px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tabs button { font: inherit; text-align: left; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px;
+                 background: var(--panel); color: var(--ink); cursor: pointer; }
+  .tabs button small { display: block; color: var(--muted); font-size: 12px; }
+  .tabs button.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+  .detectors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .det.ours { border-color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
+  .det header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 12px; }
+  .det h2 { font-size: 16px; }
+  .chip { font-size: 12px; color: var(--muted); background: var(--soft); border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+  .tag { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; margin-left: 6px; }
+  dl { display: grid; grid-template-columns: 10.5em 1fr; gap: 8px 12px; margin: 0; align-items: baseline; }
+  dt { color: var(--muted); font-size: 13px; }
+  dd { margin: 0; font-weight: 650; font-size: 15px; }
+  dd small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .ok { color: var(--good); } .no { color: var(--bad); } .meh { color: var(--warn); }
+  .bar { position: relative; height: 6px; background: var(--soft); border-radius: 3px; margin-top: 6px; }
+  .bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--ink); opacity: .75; }
+  .det.ours .bar i { background: var(--accent); opacity: 1; }
+  .bar b { position: absolute; top: -3px; width: 2px; height: 12px; background: var(--muted); }
+  .explain { font-size: 13px; color: var(--muted); padding: 12px 16px; }
+  .explain b { color: var(--ink); }
+
+  .inspect { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  td.r, th.r { text-align: right; }
+  .scroll { overflow-x: auto; }
+  #relays tbody tr { cursor: pointer; }
+  #relays tbody tr:hover td { background: var(--soft); }
+  #relays tbody tr.sel td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .pill { display: inline-block; font-size: 12px; font-weight: 650; padding: 1px 8px; border-radius: 10px; }
+  .pill.ok { background: color-mix(in srgb, var(--good) 14%, transparent); }
+  .pill.no { background: color-mix(in srgb, var(--bad) 14%, transparent); }
+  .pill.meh { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+  .pill.dim { color: var(--muted); }
+  .gh { color: var(--warn); font-weight: 650; }
+  .watch { font-size: 12px; color: var(--muted); }
+  #focus table td:first-child { font-weight: 650; }
+  #focus .big { font-size: 15px; font-weight: 700; }
+
+  table.timeline { width: auto; }
+  .timeline td, .timeline th { text-align: center; min-width: 96px; }
+  .timeline td:last-child, .timeline th:last-child { text-align: left; padding-left: 28px; }
+  .timeline td:first-child, .timeline th:first-child { text-align: left; min-width: 130px; }
+  .n { display: inline-block; min-width: 24px; padding: 1px 5px; margin: 1px; border-radius: 6px; font-size: 12px; font-weight: 700; color: #fff; }
+  .n.ok { background: var(--good); } .n.no { background: var(--bad); }
+  .done { display: block; font-size: 11px; color: var(--good); font-weight: 700; }
+
+  @media (max-width: 1100px) { .detectors, .inspect { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>Grayhole detection: fixed watchdog vs CAD-style vs ours</h1>
+    <p class="sub">Selected examples where ours does clearly better; all 10 test topologies are pooled in <code>results/summary.md</code>.
+      Each detector judges the same recorded traffic (20 sensors, grayholes drop 30%, 6 h, decision every 30 min, suspect after two flagged rounds in a row).</p>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div class="detectors" id="detectors"></div>
+  <div class="card explain" id="explain"></div>
+  <div class="inspect">
+    <section class="card">
+      <h2 id="focus-title"></h2>
+      <p class="sub" id="focus-sub"></p>
+      <svg id="map" role="img"></svg>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--accent)"></span>selected relay</span>
+        <span><span style="width:18px;border-top:2px solid var(--accent)"></span>monitors ours uses</span>
+        <span><span style="width:18px;border-top:2px dashed var(--bad)"></span>the one monitor fixed watchdog uses</span>
+        <span><span class="sw" style="border:2px dashed var(--warn)"></span>true grayhole</span>
+      </div>
+      <div class="scroll" id="focus" style="margin-top:12px"></div>
+    </section>
+    <section class="card">
+      <h2>Every relay</h2>
+      <p class="sub">Click a relay to see who watched it. Drop = estimated share of packets the relay did not forward.</p>
+      <div class="scroll"><table id="relays"></table></div>
+    </section>
+  </div>
+  <section class="card">
+    <h2>When each relay became a suspect</h2>
+    <p class="sub">Only the rounds where something changed. Green: grayhole caught. Red: honest relay accused.</p>
+    <div class="scroll"><table class="timeline" id="timeline"></table></div>
+  </section>
+</div>
+<script src="data.js"></script>
+<script>
+const D = window.DATA;
+const M = ["fixed", "cad", "ours"];
+const NAME = { fixed: "Fixed watchdog", cad: "CAD-style", ours: "Ours" };
+const RULE = { fixed: t => `miss rate > ${t * 100}%`, cad: t => `z > ${t}`, ours: t => `α = ${t}` };
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const pct = (x, d = 1) => (100 * x).toFixed(d) + "%";
+const pts = x => (x >= 0 ? "+" : "−") + Math.abs(100 * x).toFixed(1) + " pts";
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs, parent) => {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  parent.appendChild(e);
+  return e;
+};
+const state = { ex: 0, node: null };
+
+// what one detector concluded about one relay
+function verdict(relay, m) {
+  const v = relay[m];
+  if (!v || !v.judged) return ["dim", "too few windows"];
+  if (v.suspect) return relay.grayhole ? ["ok", "caught"] : ["no", "falsely accused"];
+  return relay.grayhole ? ["meh", "missed"] : ["dim", "cleared"];
+}
+const pill = (relay, m) => { const [c, t] = verdict(relay, m); return `<span class="pill ${c}">${t}</span>`; };
+const avgMonitors = (t, m) => {
+  const xs = t.relays.filter(r => r[m] && r[m].judged).map(r => r[m].monitors.length);
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+};
+
+function renderDetectors(t) {
+  const del = t.delivery;
+  $("detectors").innerHTML = M.map(m => {
+    const d = t.methods[m], k = t.grayholes.length;
+    return `<section class="card det ${m}">
+      <header><h2>${NAME[m]}${m === "ours" ? '<span class="tag">proposed</span>' : ""}</h2><span class="chip">${RULE[m](d.threshold)}</span></header>
+      <dl class="num">
+        <dt>Grayholes caught</dt><dd class="${d.caught === k ? "ok" : "meh"}">${d.caught} / ${k}</dd>
+        <dt>Honest relays accused</dt><dd class="${d.honest.length ? "no" : "ok"}">${d.honest.length}${d.honest.length ? `<small>node ${d.honest.join(", ")}</small>` : ""}</dd>
+        <dt>All grayholes caught after</dt><dd>${d.detected ? d.detected + " min" : '<span class="meh">not all caught</span>'}</dd>
+        <dt>Monitors per relay</dt><dd>${avgMonitors(t, m).toFixed(1)}<small>${m === "fixed" ? "only the sender" : m === "cad" ? "every sender" : "every neighbour in range"}</small></dd>
+        <dt>Live delivery</dt><dd>${pct(del[m])}<small>${pts(del[m] - del.nodefense)} vs no defence</small>
+          <div class="bar"><i style="width:${100 * del[m]}%"></i><b style="left:${100 * del.nodefense}%"></b><b style="left:${100 * del.noattack}%"></b></div></dd>
+      </dl></section>`;
+  }).join("");
+  const lost = del.noattack - del.nodefense;
+  $("explain").innerHTML = `<b>Live delivery</b> is the share of generated packets that reached the sink in a separate 12 h network run with the response switched on
+    (traffic routed around suspects). Even with no attack only <b>${pct(del.noattack)}</b> arrive, because the acoustic channel loses and collides frames;
+    with the attack and no defence <b>${pct(del.nodefense)}</b> arrive (the two ticks on each bar). So the attack costs <b>${(100 * lost).toFixed(1)} points</b>
+    and that is the most any detector can win back. Ours wins back <b>${(100 * (del.ours - del.nodefense)).toFixed(1)}</b> (${pct((del.ours - del.nodefense) / lost, 0)} of the loss);
+    the fixed watchdog wins back ${(100 * (del.fixed - del.nodefense)).toFixed(1)}, because routing around the honest relays it accuses costs delivery too.`;
+}
+
+function renderMap(t, relay) {
+  const svg = $("map");
+  svg.innerHTML = "";
+  const xs = t.nodes.map(n => n.x), ys = t.nodes.map(n => n.y), p = 300;
+  const minX = Math.min(...xs) - p, maxY = Math.max(...ys) + p;
+  const w = Math.max(...xs) + p - minX, h = maxY - Math.min(...ys) + p, u = Math.max(w, h) / 100, r = u * 2.8;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.setAttribute("aria-label", `Topology ${t.seed}; relay ${relay.node} and the monitors watching it`);
+  const P = n => [n.x - minX, maxY - n.y];
+  const byId = Object.fromEntries(t.nodes.map(n => [n.id, n]));
+  for (const a of t.nodes) for (const b of t.nodes)
+    if (a.id < b.id && Math.hypot(a.x - b.x, a.y - b.y) <= D.range) {
+      const [x1, y1] = P(a), [x2, y2] = P(b);
+      el("line", { x1, y1, x2, y2, stroke: css("--link"), "stroke-width": u * 0.25 }, svg);
+    }
+  for (const n of t.nodes) if (n.nextHop != null) {
+    const [x1, y1] = P(n), [x2, y2] = P(byId[n.nextHop]);
+    el("line", { x1, y1, x2, y2, stroke: css("--route"), "stroke-width": u * 0.4 }, svg);
+  }
+  const [cx, cy] = P(byId[relay.node]);
+  const ours = relay.ours ? relay.ours.monitors : [], fixed = relay.fixed ? relay.fixed.monitors : [];
+  for (const id of ours) {
+    const [x, y] = P(byId[id]);
+    el("line", { x1: x, y1: y, x2: cx, y2: cy, stroke: css("--accent"), "stroke-width": u * 0.7 }, svg);
+  }
+  for (const id of fixed) {
+    const [x, y] = P(byId[id]);
+    el("line", { x1: x, y1: y, x2: cx, y2: cy, stroke: css("--bad"), "stroke-width": u * 0.7, "stroke-dasharray": `${u * 1.4} ${u}` }, svg);
+  }
+  const gh = new Set(t.grayholes), watching = new Set([...ours, ...fixed]);
+  for (const n of t.nodes) {
+    const [x, y] = P(n), sel = n.id === relay.node;
+    if (n.id === D.sink) {
+      el("rect", { x: x - r, y: y - r, width: 2 * r, height: 2 * r, rx: u * 0.5, fill: css("--ink") }, svg);
+      el("text", { x, y: y + u, "text-anchor": "middle", "font-size": u * 2.6, "font-weight": 700, fill: css("--panel") }, svg).textContent = "S";
+      continue;
+    }
+    if (gh.has(n.id)) el("circle", { cx: x, cy: y, r: r + u * 1.3, fill: "none", stroke: css("--warn"), "stroke-width": u * 0.45, "stroke-dasharray": `${u} ${u * 0.6}` }, svg);
+    const c = el("circle", { cx: x, cy: y, r: sel ? r * 1.25 : r, fill: sel ? css("--accent") : watching.has(n.id) ? css("--ink") : css("--node"), style: "cursor:pointer" }, svg);
+    const tx = el("text", { x, y: y + u * 0.9, "text-anchor": "middle", "font-size": u * 2.5, "font-weight": 700, fill: watching.has(n.id) && !sel ? css("--panel") : "#fff", style: "cursor:pointer" }, svg);
+    tx.textContent = n.id;
+    const pick = t.relays.find(x => x.node === n.id);
+    if (pick) for (const e of [c, tx]) e.addEventListener("click", () => { state.node = n.id; render(); });
+  }
+}
+
+function renderFocus(t, relay) {
+  $("focus-title").innerHTML = `Relay ${relay.node} ${relay.grayhole ? '<span class="gh">· true grayhole</span>' : "· honest"}`;
+  const n = m => relay[m] ? relay[m].monitors.length : 0;
+  $("focus-sub").textContent = `Ours hears it from ${n("ours")} monitor${n("ours") === 1 ? "" : "s"}; the fixed watchdog trusts the view of ${n("fixed") ? "one sender" : "nobody"}.`;
+  $("focus").innerHTML = `<table class="num"><thead><tr><th>Detector</th><th class="r">Monitors</th><th>Which nodes</th><th class="r">Windows</th><th class="r">Drop</th><th>Verdict</th></tr></thead><tbody>` +
+    M.map(m => {
+      const v = relay[m];
+      return `<tr><td>${NAME[m]}</td><td class="r big">${v ? v.monitors.length : "–"}</td><td class="watch">${v ? v.monitors.join(" ") : "–"}</td>
+        <td class="r">${v ? v.windows : "–"}</td><td class="r">${v ? v.score.toFixed(1) + "%" : "–"}</td><td>${pill(relay, m)}</td></tr>`;
+    }).join("") + "</tbody></table>";
+}
+
+function renderRelays(t) {
+  $("relays").innerHTML = `<thead><tr><th class="r">Relay</th><th>Truth</th>${M.map(m => `<th>${{ fixed: "Fixed", cad: "CAD", ours: "Ours" }[m]}</th>`).join("")}<th class="r">Ours monitors</th></tr></thead><tbody>` +
+    t.relays.map(r => `<tr data-node="${r.node}" class="${r.node === state.node ? "sel" : ""}"><td class="r num"><b>${r.node}</b></td>
+      <td>${r.grayhole ? '<span class="gh">grayhole</span>' : "honest"}</td>
+      ${M.map(m => `<td class="num">${pill(r, m)} <span class="watch">${r[m] ? r[m].score.toFixed(0) + "%" : ""}</span></td>`).join("")}
+      <td class="r num">${r.ours ? r.ours.monitors.length : "–"}</td></tr>`).join("") + "</tbody>";
+  $("relays").querySelectorAll("tbody tr").forEach(tr => tr.addEventListener("click", () => { state.node = Number(tr.dataset.node); render(); }));
+}
+
+function renderTimeline(t) {
+  const gh = new Set(t.grayholes);
+  const mins = [...new Set(M.flatMap(m => t.methods[m].log.map(l => l.min)))].sort((a, b) => a - b);
+  $("timeline").innerHTML = `<thead><tr><th>Detector</th>${mins.map(x => `<th class="num">${x} min</th>`).join("")}<th>End (${t.rounds * 30} min)</th></tr></thead><tbody>` +
+    M.map(m => {
+      const d = t.methods[m];
+      return `<tr><td><b>${NAME[m]}</b></td>${mins.map(x => {
+        const l = d.log.find(l => l.min === x);
+        return `<td>${l ? l.confirmed.map(id => `<span class="n ${gh.has(id) ? "ok" : "no"}">${id}</span>`).join("") : ""}${d.detected === x ? '<span class="done">all caught</span>' : ""}</td>`;
+      }).join("")}<td class="num">${d.caught}/${t.grayholes.length} caught, <span class="${d.honest.length ? "no" : "ok"}">${d.honest.length} honest accused</span></td></tr>`;
+    }).join("") + "</tbody>";
+}
+
+function render() {
+  const t = D.examples[state.ex];
+  // start on an honest relay the fixed watchdog accused (one sender's view), else ours' top-ranked relay
+  if (!t.relays.some(r => r.node === state.node)) state.node = (t.relays.find(r => verdict(r, "fixed")[0] === "no") || t.relays[0]).node;
+  const relay = t.relays.find(r => r.node === state.node);
+  $("tabs").querySelectorAll("button").forEach((b, i) => b.classList.toggle("on", i === state.ex));
+  renderDetectors(t);
+  renderMap(t, relay);
+  renderFocus(t, relay);
+  renderRelays(t);
+  renderTimeline(t);
+}
+
+$("tabs").innerHTML = D.examples.map((t, i) => `<button>Example ${i + 1}: topology ${t.seed}<small>${t.grayholes.length} grayholes (nodes ${t.grayholes.join(", ")})</small></button>`).join("");
+$("tabs").querySelectorAll("button").forEach((b, i) => b.addEventListener("click", () => { state.ex = i; state.node = null; render(); }));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+render();
+</script>
+</body>
+</html>
